@@ -1,0 +1,159 @@
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+
+public class GestionStockUI extends JFrame {
+
+    private DefaultTableModel tableModel;
+    private JTable productTable;
+
+    private final String[] categories = {"Electromenager", "Equipement Informatique", "Accessoire Electronique"};
+
+    public GestionStockUI() {
+        setTitle("Système de Gestion de Stock Électronique");
+        setSize(900, 600);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        initComponents();
+    }
+
+    private void initComponents() {
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
+        setContentPane(mainPanel);
+
+        JLabel lblTitle = new JLabel("Inventaire du Magasin", JLabel.CENTER);
+        lblTitle.setFont(new Font("Arial", Font.BOLD, 24));
+        lblTitle.setBorder(new EmptyBorder(0, 0, 15, 0));
+        mainPanel.add(lblTitle, BorderLayout.NORTH);
+
+        String[] columnNames = {"Code Produit", "Catégorie", "Nom", "Marque", "Prix (€)", "Qté Stock", "Garantie (Mois)"};
+
+        tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        productTable = new JTable(tableModel);
+        productTable.setRowHeight(25);
+        productTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 12));
+        productTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+        loadDummyData();
+
+        JScrollPane scrollPane = new JScrollPane(productTable);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+
+        JButton btnAdd = new JButton("Nouveau Produit");
+        JButton btnDelete = new JButton("Supprimer Sélection");
+        btnAdd.setPreferredSize(new Dimension(140, 35));
+        btnDelete.setPreferredSize(new Dimension(150, 35));
+
+        btnAdd.addActionListener(e -> showAddProductDialog());
+
+        btnDelete.addActionListener(e -> deleteSelectedProduct());
+
+        buttonPanel.add(btnDelete);
+        buttonPanel.add(btnAdd);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+    }
+
+    private void loadDummyData() {
+        tableModel.addRow(new Object[]{"ELEC-001", categories[0], "Lave-linge X500", "Samsung", 499.99, 5, 24});
+        tableModel.addRow(new Object[]{"INFO-102", categories[1], "Laptop Pro 14", "Dell", 1200.50, 10, 12});
+        tableModel.addRow(new Object[]{"ACC-999", categories[2], "Câble USB-C 2m", "Anker", 15.00, 50, 6});
+    }
+
+    private void showAddProductDialog() {
+        JDialog dialog = new JDialog(this, "Nouveau Produit", true);
+        dialog.setSize(400, 450);
+        dialog.setLocationRelativeTo(this);
+
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        JTextField txtCode = new JTextField(15);
+        JComboBox<String> comboCategory = new JComboBox<>(categories);
+        JTextField txtName = new JTextField(15);
+        JTextField txtBrand = new JTextField(15);
+        JSpinner spinPrice = new JSpinner(new SpinnerNumberModel(0.0, 0.0, 10000.0, 10.0));
+        JSpinner spinQty = new JSpinner(new SpinnerNumberModel(0, 0, 1000, 1));
+        JSpinner spinWarranty = new JSpinner(new SpinnerNumberModel(12, 0, 60, 6));
+
+        int gridY = 0;
+        addFormField(formPanel, gbc, "Code Produit:", txtCode, gridY++);
+        addFormField(formPanel, gbc, "Catégorie:", comboCategory, gridY++);
+        addFormField(formPanel, gbc, "Nom:", txtName, gridY++);
+        addFormField(formPanel, gbc, "Marque:", txtBrand, gridY++);
+        addFormField(formPanel, gbc, "Prix (€):", spinPrice, gridY++);
+        addFormField(formPanel, gbc, "Quantité:", spinQty, gridY++);
+        addFormField(formPanel, gbc, "Garantie (mois):", spinWarranty, gridY++);
+
+        JButton btnSave = new JButton("Enregistrer");
+        btnSave.setPreferredSize(new Dimension(100, 30));
+        gbc.gridx = 1; gbc.gridy = gridY; gbc.anchor = GridBagConstraints.EAST;
+        formPanel.add(btnSave, gbc);
+
+        btnSave.addActionListener((ActionEvent e) -> {
+            if (txtCode.getText().isEmpty() || txtName.getText().isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Veuillez remplir au moins le Code et le Nom.", "Erreur", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            tableModel.addRow(new Object[]{
+                    txtCode.getText(),
+                    comboCategory.getSelectedItem(),
+                    txtName.getText(),
+                    txtBrand.getText(),
+                    spinPrice.getValue(),
+                    spinQty.getValue(),
+                    spinWarranty.getValue()
+            });
+            dialog.dispose();
+        });
+
+        dialog.add(formPanel);
+        dialog.setVisible(true);
+    }
+
+    private void addFormField(JPanel panel, GridBagConstraints gbc, String labelText, JComponent field, int gridY) {
+        gbc.gridx = 0; gbc.gridy = gridY; gbc.weightx = 0.3;
+        panel.add(new JLabel(labelText), gbc);
+        gbc.gridx = 1; gbc.weightx = 0.7;
+        panel.add(field, gbc);
+    }
+
+    private void deleteSelectedProduct() {
+        int selectedRow = productTable.getSelectedRow();
+        if (selectedRow >= 0) {
+            int confirm = JOptionPane.showConfirmDialog(this, "Voulez-vous vraiment supprimer cet article ?", "Confirmation", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                tableModel.removeRow(selectedRow);
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Veuillez sélectionner un produit à supprimer.");
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            new GestionStockUI().setVisible(true);
+        });
+    }
+}
