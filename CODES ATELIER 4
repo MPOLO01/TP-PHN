@@ -1,0 +1,367 @@
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+public class AirtelMoneyApp {
+
+    private static ServiceComptes service;
+    private static Scanner scanner;
+
+    public static void main(String[] args) {
+        service = new ServiceComptes();
+        scanner = new Scanner(System.in);
+
+        System.out.println("Bienvenue sur le service Airtel Money (*501#)");
+
+        int choix;
+        do {
+            afficherMenuPrincipal();
+            if (scanner.hasNextInt()) {
+                choix = scanner.nextInt();
+                scanner.nextLine();
+                traiterChoixMenu(choix);
+            } else {
+                System.err.println("Veuillez entrer un nombre valide.");
+                scanner.nextLine();
+                choix = -1;
+            }
+        } while (choix != 0);
+
+        System.out.println("Au revoir et merci d'avoir utilisé Airtel Money!");
+        scanner.close();
+    }
+
+    private static void afficherMenuPrincipal() {
+        System.out.println("\n==================================");
+        System.out.println("  MENU PRINCIPAL Airtel Money (*501#)");
+        System.out.println("==================================");
+        System.out.println("1. Envoyer de l'argent");
+        System.out.println("2. Consulter le solde");
+        System.out.println("3. Gérer les comptes");
+        System.out.println("0. Quitter");
+        System.out.print("Entrez votre choix: ");
+    }
+
+    private static void traiterChoixMenu(int choix) {
+        switch (choix) {
+            case 1:
+                envoyerArgent();
+                break;
+            case 2:
+                consulterSolde();
+                break;
+            case 3:
+                menuGestionComptes();
+                break;
+            case 0:
+                break;
+            default:
+                System.err.println("Choix invalide. Veuillez réessayer.");
+        }
+    }
+
+    private static void envoyerArgent() {
+        System.out.println("\n--- ENVOYER DE L'ARGENT ---");
+        System.out.print("Numéro de compte source (e.g., AM001): ");
+        String sourceNum = scanner.nextLine().toUpperCase();
+
+        Compte compteSource = service.trouverCompteParNumero(sourceNum);
+
+        if (compteSource == null) {
+            System.err.println("Compte source introuvable.");
+            return;
+        }
+
+        System.out.print("Numéro de compte destinataire (e.g., AM002): ");
+        String destNum = scanner.nextLine().toUpperCase();
+
+        Compte compteDest = service.trouverCompteParNumero(destNum);
+
+        if (compteDest == null) {
+            System.err.println("Compte destinataire introuvable.");
+            return;
+        }
+
+        System.out.print("Montant à transférer: ");
+        if (scanner.hasNextDouble()) {
+            double montant = scanner.nextDouble();
+            scanner.nextLine();
+
+            if (compteSource instanceof CompteAirtelMoney) {
+                ((CompteAirtelMoney) compteSource).transferer(compteDest, montant);
+            } else {
+                System.err.println("Seuls les comptes Airtel Money peuvent initier des transferts dans cette simulation.");
+            }
+
+        } else {
+            System.err.println("Montant invalide.");
+            scanner.nextLine();
+        }
+    }
+
+    private static void consulterSolde() {
+        System.out.println("\n--- CONSULTER LE SOLDE ---");
+        System.out.print("Numéro de compte à consulter: ");
+        String num = scanner.nextLine().toUpperCase();
+
+        Compte compte = service.trouverCompteParNumero(num);
+
+        if (compte != null) {
+            compte.afficherDetails();
+        } else {
+            System.err.println("Compte " + num + " introuvable.");
+        }
+    }
+
+    private static void menuGestionComptes() {
+        int choix;
+        do {
+            System.out.println("\n----- GESTION DES COMPTES -----");
+            System.out.println("1. Créer un nouveau compte");
+            System.out.println("2. Afficher tous les comptes");
+            System.out.println("3. Déposer de l'argent");
+            System.out.println("4. Supprimer un compte");
+            System.out.println("0. Retour au menu principal");
+            System.out.print("Entrez votre choix: ");
+
+            if (scanner.hasNextInt()) {
+                choix = scanner.nextInt();
+                scanner.nextLine();
+
+                switch(choix) {
+                    case 1: creerNouveauCompte(); break;
+                    case 2: service.afficherTousLesComptes(); break;
+                    case 3: deposerArgent(); break;
+                    case 4: supprimerCompte(); break;
+                    case 0: break;
+                    default: System.err.println(" Choix invalide.");
+                }
+            } else {
+                System.err.println(" Veuillez entrer un nombre valide.");
+                scanner.nextLine();
+                choix = -1;
+            }
+        } while (choix != 0);
+    }
+
+    private static void creerNouveauCompte() {
+        System.out.println("\n--- CRÉER UN COMPTE ---");
+        System.out.print("Type de compte (1: Airtel Money, 2: Bancaire): ");
+        if (!scanner.hasNextInt()) {
+            System.err.println(" Type de compte invalide.");
+            scanner.nextLine();
+            return;
+        }
+        int type = scanner.nextInt();
+        scanner.nextLine();
+
+        System.out.print("Numéro de compte (ex: 0994328621: ");
+        String num = scanner.nextLine().toUpperCase();
+
+        System.out.print("Nom de l'utilisateur: ");
+        String nom = scanner.nextLine();
+
+        Compte nouveauCompte = null;
+
+        if (type == 1) {
+            System.out.print("Numéro de téléphone: ");
+            String tel = scanner.nextLine();
+            nouveauCompte = new CompteAirtelMoney(num, nom, tel);
+        } else if (type == 2) {
+            System.out.print("Nom de la banque: ");
+            String banque = scanner.nextLine();
+            nouveauCompte = new CompteBancaire(num, nom, banque);
+        } else {
+            System.err.println("Type de compte invalide.");
+            return;
+        }
+
+        service.creerCompte(nouveauCompte);
+    }
+
+    private static void deposerArgent() {
+        System.out.println("\n--- DÉPOSER DE L'ARGENT ---");
+        System.out.print("Numéro de compte pour le dépôt: ");
+        String num = scanner.nextLine().toUpperCase();
+
+        Compte compte = service.trouverCompteParNumero(num);
+
+        if (compte != null) {
+            System.out.print("Montant du dépôt: ");
+            if (scanner.hasNextDouble()) {
+                double montant = scanner.nextDouble();
+                scanner.nextLine();
+                compte.deposer(montant);
+            } else {
+                System.err.println("Montant invalide.");
+                scanner.nextLine();
+            }
+        } else {
+            System.err.println("Compte " + num + " introuvable.");
+        }
+    }
+
+    private static void supprimerCompte() {
+        System.out.println("\n--- SUPPRIMER UN COMPTE ---");
+        System.out.print("Numéro de compte à supprimer: ");
+        String num = scanner.nextLine().toUpperCase();
+        service.supprimerCompte(num);
+    }
+}
+
+abstract class Compte {
+    protected String numeroCompte;
+    protected double solde;
+    protected String nomUtilisateur;
+
+    public Compte(String numeroCompte, String nomUtilisateur) {
+        this.numeroCompte = numeroCompte;
+        this.nomUtilisateur = nomUtilisateur;
+        this.solde = 0.0;
+    }
+
+    public String getNumeroCompte() {
+        return numeroCompte;
+    }
+
+    public double getSolde() {
+        return solde;
+    }
+
+    public String getNomUtilisateur() {
+        return nomUtilisateur;
+    }
+
+    public abstract String getTypeCompte();
+    public abstract void afficherDetails();
+
+    public void deposer(double montant) {
+        if (montant > 0) {
+            this.solde += montant;
+            System.out.println("Dépôt de " + montant + " USD effectué sur le compte " + numeroCompte);
+        } else {
+            System.err.println("Le montant du dépôt doit être positif.");
+        }
+    }
+
+    public boolean retirer(double montant) {
+        if (montant > 0 && this.solde >= montant) {
+            this.solde -= montant;
+            System.out.println("Retrait de " + montant + " USD effectué sur le compte " + numeroCompte);
+            return true;
+        } else {
+            System.err.println("Fonds insuffisants ou montant invalide pour le compte " + numeroCompte);
+            return false;
+        }
+    }
+}
+
+class CompteAirtelMoney extends Compte {
+    private String numeroTelephone;
+
+    public CompteAirtelMoney(String numeroCompte, String nomUtilisateur, String numeroTelephone) {
+        super(numeroCompte, nomUtilisateur);
+        this.numeroTelephone = numeroTelephone;
+    }
+
+    @Override
+    public String getTypeCompte() {
+        return "Airtel Money";
+    }
+
+    @Override
+    public void afficherDetails() {
+        System.out.println("--- Détails Compte Airtel Money ---");
+        System.out.println("Numéro du compte: " + numeroCompte);
+        System.out.println("Nom: " + nomUtilisateur);
+        System.out.println("Téléphone: " + numeroTelephone);
+        System.out.println("Solde: " + String.format("%.2f", solde) + " USD");
+        System.out.println("------------------------------------");
+    }
+
+    public boolean transferer(Compte destinataire, double montant) {
+        if (retirer(montant)) {
+            destinataire.deposer(montant);
+            System.out.println("Transfert de " + montant + " USD vers " + destinataire.getNomUtilisateur() + " (" + destinataire.getNumeroCompte() + ") réussi.");
+            return true;
+        }
+        return false;
+    }
+}
+
+class CompteBancaire extends Compte {
+    private String nomBanque;
+
+    public CompteBancaire(String numeroCompte, String nomUtilisateur, String nomBanque) {
+        super(numeroCompte, nomUtilisateur);
+        this.nomBanque = nomBanque;
+    }
+
+    @Override
+    public String getTypeCompte() {
+        return "Bancaire";
+    }
+
+    @Override
+    public void afficherDetails() {
+        System.out.println("--- Détails Compte Bancaire ---");
+        System.out.println("Numéro du compte: " + numeroCompte);
+        System.out.println("Nom: " + nomUtilisateur);
+        System.out.println("Banque: " + nomBanque);
+        System.out.println("Solde: " + String.format("%.2f", solde) + " USD");
+        System.out.println("------------------------------------");
+    }
+}
+
+class ServiceComptes {
+    private List<Compte> listeComptes;
+
+    public ServiceComptes() {
+        this.listeComptes = new ArrayList<>();
+        creerCompte(new CompteAirtelMoney("0977152825", "Jean Paul MPOLO", "+243881234567"));
+        creerCompte(new CompteBancaire("0977152825", "MBUYU KASONGO Sarah", "FBN Bank"));
+
+        Compte jeanpaul = trouverCompteParNumero("AM001");
+        if(jeanpaul != null) {
+            jeanpaul.deposer(500.0);
+        }
+    }
+
+    public void creerCompte(Compte compte) {
+        listeComptes.add(compte);
+        System.out.println("Compte créé: " + compte.getNumeroCompte() + " (" + compte.getTypeCompte() + ")");
+    }
+
+    public Compte trouverCompteParNumero(String numero) {
+        for (Compte compte : listeComptes) {
+            if (compte.getNumeroCompte().equals(numero)) {
+                return compte;
+            }
+        }
+        return null;
+    }
+
+    public void afficherTousLesComptes() {
+        if (listeComptes.isEmpty()) {
+            System.out.println(" Aucun compte enregistré.");
+            return;
+        }
+        System.out.println("\n===== LISTE DE TOUS LES COMPTES ENREGISTRÉS (" + listeComptes.size() + " total) =====");
+        for (Compte compte : listeComptes) {
+            compte.afficherDetails();
+        }
+        System.out.println("==================================================");
+    }
+
+    public boolean supprimerCompte(String numero) {
+        Compte compteASupprimer = trouverCompteParNumero(numero);
+        if (compteASupprimer != null) {
+            listeComptes.remove(compteASupprimer);
+            System.out.println("Compte " + numero + " supprimé.");
+            return true;
+        } else {
+            System.err.println("Compte " + numero + " introuvable. Suppression impossible.");
+            return false;
+        }
+    }
+}
