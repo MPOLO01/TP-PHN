@@ -1,9 +1,17 @@
+import com.google.gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
+import java.io.*;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.time.LocalDateTime;
+import java.util.Optional;
+import java.io.Serializable;
 
-abstract class Compte {
+abstract class Compte implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private String numeroCompte;
     private double solde;
     private String titulaire;
@@ -21,6 +29,10 @@ abstract class Compte {
     public String getNumeroCompte() { return numeroCompte; }
     public double getSolde() { return solde; }
     public String getTitulaire() { return titulaire; }
+    public String getCodePIN() { return codePIN; }
+
+    public void setSolde(double solde) { this.solde = solde; }
+    public void setCodePIN(String codePIN) { this.codePIN = codePIN; }
 
     public boolean verifierPIN(String pin) {
         return this.codePIN.equals(pin);
@@ -42,6 +54,8 @@ abstract class Compte {
 }
 
 class CompteAirtelMoney extends Compte {
+    private static final long serialVersionUID = 1L;
+
     private String numeroTelephone;
 
     public CompteAirtelMoney(String titulaire, String codePIN, String numeroTelephone) {
@@ -55,138 +69,163 @@ class CompteAirtelMoney extends Compte {
     }
 
     public String getNumeroTelephone() { return numeroTelephone; }
-}
-
-class Transaction {
-    private String idTransaction;
-    private String type;
-    private double montant;
-    private String date;
-
-    public Transaction(String type, double montant) {
-        this.idTransaction = UUID.randomUUID().toString().substring(0, 4);
-        this.type = type;
-        this.montant = montant;
-        this.date = LocalDateTime.now().toString();
-    }
+    public void setNumeroTelephone(String numeroTelephone) { this.numeroTelephone = numeroTelephone; }
 
     @Override
     public String toString() {
-        return String.format("[%s] Type: %s, Montant: %.2f, Date: %s",
-                idTransaction, type, montant, date.substring(0, 19));
+        return String.format("ID: %s | Tél: %s | Titulaire: %s | Solde: %.2f $",
+                getNumeroCompte(), numeroTelephone, getTitulaire(), getSolde());
     }
 }
 
-class ServiceAirtelMoney {
-    private List<CompteAirtelMoney> comptes;
-    private List<Transaction> historiqueGlobal;
+class GestionnaireFichierJSON {
+    private static final String NOM_FICHIER = "comptes_airtel.json";
+    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private final Type LIST_TYPE = new TypeToken<ArrayList<CompteAirtelMoney>>() {}.getType();
 
-    public ServiceAirtelMoney() {
-        this.comptes = new ArrayList<>();
-        this.historiqueGlobal = new ArrayList<>();
+    public List<CompteAirtelMoney> lireFichier() {
+        try (Reader reader = new FileReader(NOM_FICHIER)) {
+            List<CompteAirtelMoney> comptes = gson.fromJson(reader, LIST_TYPE);
+            return (comptes != null) ? comptes : new ArrayList<>();
+        } catch (FileNotFoundException e) {
+            return new ArrayList<>();
+        } catch (IOException e) {
+            System.err.println("Erreur de lecture du fichier JSON: " + e.getMessage());
+            return new ArrayList<>();
+        }
     }
 
-    public void creerCompte(String titulaire, String pin, String telephone) {
-        if (getCompteParTelephone(telephone) == null) {
-            CompteAirtelMoney nouveauCompte = new CompteAirtelMoney(titulaire, pin, telephone);
+    public void ecrireFichier(List<CompteAirtelMoney> comptes) throws IOException {
+        try (FileWriter writer = new FileWriter(NOM_FICHIER)) {
+            gson.toJson(comptes, writer);
+        }
+    }
+
+    public void creerCompte(CompteAirtelMoney nouveauCompte) {
+        List<CompteAirtelMoney> comptes = lireFichier();
+        boolean existe = comptes.stream()
+                .anyMatch(c -> c.getNumeroTelephone().equals(nouveauCompte.getNumeroTelephone()));
+
+        if (!existe) {
             comptes.add(nouveauCompte);
-            System.out.println("Compte Airtel Money créé pour " + titulaire + " (Tél: " + telephone + ")");
-        } else {
-            System.out.println("Erreur: Un compte existe déjà avec ce numéro de téléphone.");
-        }
-    }
-
-    public CompteAirtelMoney getCompteParTelephone(String telephone) {
-        for (CompteAirtelMoney compte : comptes) {
-            if (compte.getNumeroTelephone().equals(telephone)) {
-                return compte;
+            try {
+                ecrireFichier(comptes);
+                System.out.println(" Compte créé et ajouté au fichier JSON.");
+            } catch (IOException e) {
+                System.err.println("Erreur lors de l'écriture du fichier JSON.");
             }
-        }
-        return null;
-    }
-
-    public void consulterSolde(String telephone, String pin) {
-        CompteAirtelMoney compte = getCompteParTelephone(telephone);
-        if (compte != null && compte.verifierPIN(pin)) {
-            System.out.printf("Solde actuel pour %s: %.2f $\n",
-                    compte.getTitulaire(), compte.getSolde());
         } else {
-            System.out.println("Échec de la consultation : Numéro de téléphone ou PIN incorrect.");
+            System.out.println("❌Un compte existe déjà avec ce numéro de téléphone.");
         }
     }
 
-    public void transfertArgent(String telSource, String pinSource, String telDest, double montant) {
-        CompteAirtelMoney source = getCompteParTelephone(telSource);
-        CompteAirtelMoney destination = getCompteParTelephone(telDest);
+    public Optional<CompteAirtelMoney> lireCompteParTelephone(String numeroTelephone) {
+        List<CompteAirtelMoney> comptes = lireFichier();
+        return comptes.stream()
+                .filter(c -> c.getNumeroTelephone().equals(numeroTelephone))
+                .findFirst();
+    }
 
-        if (source == null || !source.verifierPIN(pinSource)) {
-            System.out.println("Échec du transfert : Compte source ou PIN incorrect.");
+    public void afficherTousLesComptes() {
+        List<CompteAirtelMoney> comptes = lireFichier();
+        if (comptes.isEmpty()) {
+            System.out.println("Aucun compte trouvé dans le fichier JSON.");
             return;
         }
-
-        if (destination == null) {
-            System.out.println("Échec du transfert : Compte de destination introuvable.");
-            return;
-        }
-
-        if (source.retirer(montant)) {
-            destination.deposer(montant);
-
-            historiqueGlobal.add(new Transaction("Transfert sortant", montant));
-            historiqueGlobal.add(new Transaction("Transfert entrant", montant));
-            System.out.printf("Transfert de %.2f $ de %s vers %s réussi.\n",
-                    montant, source.getTitulaire(), destination.getTitulaire());
-        } else {
-            System.out.println("Échec du transfert : Solde insuffisant.");
-        }
+        System.out.println("\n--- [READ] Liste des Comptes Airtel Money ---");
+        comptes.forEach(System.out::println);
     }
 
-    public void afficherHistoriqueGlobal() {
-        System.out.println("\n--- Historique Global des Transactions ---");
-        if (historiqueGlobal.isEmpty()) {
-            System.out.println("Aucune transaction enregistrée.");
-        } else {
-            for (Transaction t : historiqueGlobal) {
-                System.out.println(t);
+    public boolean mettreAJourCompte(String numeroTelephone, String nouveauTitulaire, String nouveauPIN) {
+        List<CompteAirtelMoney> comptes = lireFichier();
+
+        Optional<CompteAirtelMoney> compteOpt = comptes.stream()
+                .filter(c -> c.getNumeroTelephone().equals(numeroTelephone))
+                .findFirst();
+
+        if (compteOpt.isPresent()) {
+            CompteAirtelMoney compteAModifier = compteOpt.get();
+            if (nouveauPIN != null && !nouveauPIN.isEmpty()) {
+                compteAModifier.setCodePIN(nouveauPIN);
+            }
+
+            try {
+                ecrireFichier(comptes);
+                System.out.println(" Compte " + numeroTelephone + " mis à jour (PIN/Titulaire).");
+                return true;
+            } catch (IOException e) {
+                System.err.println("Erreur lors de l'enregistrement de la modification.");
+                return false;
             }
         }
-        System.out.println("----------------------------------------");
+        System.out.println("Compte non trouvé pour la modification.");
+        return false;
+    }
+
+    public boolean supprimerCompte(String numeroTelephone) {
+        List<CompteAirtelMoney> comptes = lireFichier();
+        boolean supprime = comptes.removeIf(c -> c.getNumeroTelephone().equals(numeroTelephone));
+
+        if (supprime) {
+            try {
+                ecrireFichier(comptes);
+                System.out.println(" Compte JSON " + numeroTelephone + " supprimé.");
+                return true;
+            } catch (IOException e) {
+                System.err.println("Erreur lors de la suppression du fichier JSON.");
+                return false;
+            }
+        } else {
+            System.out.println("Compte non trouvé pour la suppression.");
+            return false;
+        }
     }
 }
 
-public class SimulationAirtelMoney {
+public class AirtelMoneyCRUD {
     public static void main(String[] args) {
-        ServiceAirtelMoney service = new ServiceAirtelMoney();
+        GestionnaireFichierJSON crudManager = new GestionnaireFichierJSON();
 
-        System.out.println("\n--- 1. Création des Comptes ---");
-        service.creerCompte("Sarah MBUYU", "1234", "0992929456");
-        service.creerCompte("Jean Paul MPOLO", "4321", "0977152825");
+        System.out.println("\n--- Opération CREATE ---");
+        CompteAirtelMoney sarah = new CompteAirtelMoney("Sarah MBUYU", "1234", "0992929456");
+        sarah.deposer(500.0);
+        crudManager.creerCompte(sarah);
 
-        System.out.println("\n--- 2. Simulation de Dépôts Initiaux (Agent) ---");
-        CompteAirtelMoney Sarah MBUYU = service.getCompteParTelephone("0992929456");
-        CompteAirtelMoney Jean Paul MPOLO= service.getCompteParTelephone("0977152825");
+        CompteAirtelMoney jean = new CompteAirtelMoney("Jean Paul MPOLO", "4321", "0977152825");
+        jean.deposer(150.0);
+        crudManager.creerCompte(jean);
 
-        if (alice != null) {
-            alice.deposer(100.0);
-            System.out.printf("Dépôt initial de 100 $ pour Sarah MBUYU. Nouveau solde: %.2f $\n", alice.getSolde());
+        System.out.println("\n--- Opération READ ---");
+        crudManager.afficherTousLesComptes();
+
+        Optional<CompteAirtelMoney> compteSarah = crudManager.lireCompteParTelephone("0992929456");
+        if (compteSarah.isPresent()) {
+            System.out.println("Lecture spécifique (Sarah): " + compteSarah.get());
         }
-        if (bob != null) {
-            bob.deposer(50.0);
-            System.out.printf("Dépôt initial de 50 $ pour Jean PAul MPOLO. Nouveau solde: %.2f $\n", bob.getSolde());
+
+        System.out.println("\n--- Opération UPDATE ---");
+        crudManager.mettreAJourCompte("0977152825", null, "9999");
+
+        Optional<CompteAirtelMoney> compteJean = crudManager.lireCompteParTelephone("0977152825");
+        if (compteJean.isPresent() && compteJean.get().verifierPIN("9999")) {
+            System.out.println("Solde Jean Paul avant retrait: " + compteJean.get().getSolde());
+            if (compteJean.get().retirer(50.0)) {
+                System.out.println("Retrait de 50.0 $ effectué.");
+                List<CompteAirtelMoney> tousLesComptes = crudManager.lireFichier();
+                tousLesComptes.replaceAll(c -> c.getNumeroTelephone().equals("0977152825") ? compteJean.get() : c);
+                try {
+                    crudManager.ecrireFichier(tousLesComptes);
+                    System.out.println("Transaction enregistrée (nouvel état écrit en JSON).");
+                } catch (IOException e) { e.printStackTrace(); }
+            }
         }
+        crudManager.afficherTousLesComptes();
 
-        System.out.println("\n--- 3. Consultation de Solde (*501# Option 1) ---");
-        service.consulterSolde("0992929456", "1234");
-        service.consulterSolde("0977152825", "0000");
 
-        System.out.println("\n--- 4. Transfert d'Argent (*501# Option 2) ---");
-        service.transfertArgent("0992929456", "1234", "0992929456", 20.0);
-        service.transfertArgent(""0977152825", "1234", "0977152825", 90.0);
+        System.out.println("\n--- Opération DELETE ---");
+        crudManager.supprimerCompte("0992929456");
 
-        System.out.println("\n--- 5. Vérification des Nouveaux Soldes ---");
-        service.consulterSolde("0992929456", "1234");
-        service.consulterSolde("097715282", "4321");
-
-        service.afficherHistoriqueGlobal();
+        System.out.println("\n--- Vérification après DELETE ---");
+        crudManager.afficherTousLesComptes();
     }
 }
