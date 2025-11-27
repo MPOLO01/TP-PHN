@@ -1,1 +1,192 @@
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.time.LocalDateTime;
 
+abstract class Compte {
+    private String numeroCompte;
+    private double solde;
+    private String titulaire;
+    private String codePIN;
+
+    public Compte(String titulaire, String codePIN) {
+        this.numeroCompte = UUID.randomUUID().toString().substring(0, 8);
+        this.solde = 0.0;
+        this.titulaire = titulaire;
+        this.codePIN = codePIN;
+    }
+
+    public abstract String getTypeCompte();
+
+    public String getNumeroCompte() { return numeroCompte; }
+    public double getSolde() { return solde; }
+    public String getTitulaire() { return titulaire; }
+
+    public boolean verifierPIN(String pin) {
+        return this.codePIN.equals(pin);
+    }
+
+    public void deposer(double montant) {
+        if (montant > 0) {
+            this.solde += montant;
+        }
+    }
+
+    public boolean retirer(double montant) {
+        if (montant > 0 && this.solde >= montant) {
+            this.solde -= montant;
+            return true;
+        }
+        return false;
+    }
+}
+
+class CompteAirtelMoney extends Compte {
+    private String numeroTelephone;
+
+    public CompteAirtelMoney(String titulaire, String codePIN, String numeroTelephone) {
+        super(titulaire, codePIN);
+        this.numeroTelephone = numeroTelephone;
+    }
+
+    @Override
+    public String getTypeCompte() {
+        return "Airtel Money";
+    }
+
+    public String getNumeroTelephone() { return numeroTelephone; }
+}
+
+class Transaction {
+    private String idTransaction;
+    private String type;
+    private double montant;
+    private String date;
+
+    public Transaction(String type, double montant) {
+        this.idTransaction = UUID.randomUUID().toString().substring(0, 4);
+        this.type = type;
+        this.montant = montant;
+        this.date = LocalDateTime.now().toString();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("[%s] Type: %s, Montant: %.2f, Date: %s",
+                idTransaction, type, montant, date.substring(0, 19));
+    }
+}
+
+class ServiceAirtelMoney {
+    private List<CompteAirtelMoney> comptes;
+    private List<Transaction> historiqueGlobal;
+
+    public ServiceAirtelMoney() {
+        this.comptes = new ArrayList<>();
+        this.historiqueGlobal = new ArrayList<>();
+    }
+
+    public void creerCompte(String titulaire, String pin, String telephone) {
+        if (getCompteParTelephone(telephone) == null) {
+            CompteAirtelMoney nouveauCompte = new CompteAirtelMoney(titulaire, pin, telephone);
+            comptes.add(nouveauCompte);
+            System.out.println("Compte Airtel Money créé pour " + titulaire + " (Tél: " + telephone + ")");
+        } else {
+            System.out.println("Erreur: Un compte existe déjà avec ce numéro de téléphone.");
+        }
+    }
+
+    public CompteAirtelMoney getCompteParTelephone(String telephone) {
+        for (CompteAirtelMoney compte : comptes) {
+            if (compte.getNumeroTelephone().equals(telephone)) {
+                return compte;
+            }
+        }
+        return null;
+    }
+
+    public void consulterSolde(String telephone, String pin) {
+        CompteAirtelMoney compte = getCompteParTelephone(telephone);
+        if (compte != null && compte.verifierPIN(pin)) {
+            System.out.printf("Solde actuel pour %s: %.2f $\n",
+                    compte.getTitulaire(), compte.getSolde());
+        } else {
+            System.out.println("Échec de la consultation : Numéro de téléphone ou PIN incorrect.");
+        }
+    }
+
+    public void transfertArgent(String telSource, String pinSource, String telDest, double montant) {
+        CompteAirtelMoney source = getCompteParTelephone(telSource);
+        CompteAirtelMoney destination = getCompteParTelephone(telDest);
+
+        if (source == null || !source.verifierPIN(pinSource)) {
+            System.out.println("Échec du transfert : Compte source ou PIN incorrect.");
+            return;
+        }
+
+        if (destination == null) {
+            System.out.println("Échec du transfert : Compte de destination introuvable.");
+            return;
+        }
+
+        if (source.retirer(montant)) {
+            destination.deposer(montant);
+
+            historiqueGlobal.add(new Transaction("Transfert sortant", montant));
+            historiqueGlobal.add(new Transaction("Transfert entrant", montant));
+            System.out.printf("Transfert de %.2f $ de %s vers %s réussi.\n",
+                    montant, source.getTitulaire(), destination.getTitulaire());
+        } else {
+            System.out.println("Échec du transfert : Solde insuffisant.");
+        }
+    }
+
+    public void afficherHistoriqueGlobal() {
+        System.out.println("\n--- Historique Global des Transactions ---");
+        if (historiqueGlobal.isEmpty()) {
+            System.out.println("Aucune transaction enregistrée.");
+        } else {
+            for (Transaction t : historiqueGlobal) {
+                System.out.println(t);
+            }
+        }
+        System.out.println("----------------------------------------");
+    }
+}
+
+public class SimulationAirtelMoney {
+    public static void main(String[] args) {
+        ServiceAirtelMoney service = new ServiceAirtelMoney();
+
+        System.out.println("\n--- 1. Création des Comptes ---");
+        service.creerCompte("Sarah MBUYU", "1234", "0992929456");
+        service.creerCompte("Jean Paul MPOLO", "4321", "0977152825");
+
+        System.out.println("\n--- 2. Simulation de Dépôts Initiaux (Agent) ---");
+        CompteAirtelMoney Sarah MBUYU = service.getCompteParTelephone("0992929456");
+        CompteAirtelMoney Jean Paul MPOLO= service.getCompteParTelephone("0977152825");
+
+        if (alice != null) {
+            alice.deposer(100.0);
+            System.out.printf("Dépôt initial de 100 $ pour Sarah MBUYU. Nouveau solde: %.2f $\n", alice.getSolde());
+        }
+        if (bob != null) {
+            bob.deposer(50.0);
+            System.out.printf("Dépôt initial de 50 $ pour Jean PAul MPOLO. Nouveau solde: %.2f $\n", bob.getSolde());
+        }
+
+        System.out.println("\n--- 3. Consultation de Solde (*501# Option 1) ---");
+        service.consulterSolde("0992929456", "1234");
+        service.consulterSolde("0977152825", "0000");
+
+        System.out.println("\n--- 4. Transfert d'Argent (*501# Option 2) ---");
+        service.transfertArgent("0992929456", "1234", "0992929456", 20.0);
+        service.transfertArgent(""0977152825", "1234", "0977152825", 90.0);
+
+        System.out.println("\n--- 5. Vérification des Nouveaux Soldes ---");
+        service.consulterSolde("0992929456", "1234");
+        service.consulterSolde("097715282", "4321");
+
+        service.afficherHistoriqueGlobal();
+    }
+}
